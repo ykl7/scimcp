@@ -7,8 +7,11 @@ requires-python = ">=3.11"    #Usually its 3.11>
 dependencies = [
     "docling>=2.52.0",
     "fastmcp>=2.12.3",
+    "google-search-results>=2.4.2",
     "huggingface-hub>=0.34.4",
     "langchain>=0.3.27",
+    "langchain-community>=0.3.29",
     "openai>=1.107.2",
+    "semanticscholar>=0.11.0",
     "smolagents[mcp,toolkit]>=1.21.3",
 ]

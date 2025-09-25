@@ -153,11 +153,11 @@ def Semantic_Scholar_search(query="", result_limit=5) -> list[dict]:
         
     This tool is useful for literature reviews, sourcing papers for research, or finding up-to-date work on a specific topic.
     """
-    # api_key = os.environ["SEMANTIC_SCHOLAR_API"]
+    api_key = os.environ["SEMANTIC_SCHOLAR_API"]
     fields = "title,abstract,citationCount,tldr,fieldsOfStudy,year,authors,isOpenAccess,openAccessPdf,url,venue"
 
     rsp = requests.get('https://api.semanticscholar.org/graph/v1/paper/search',
-                           headers={'X-API-KEY': "aBwBbmCpic50CTnKIAXYCuDAIJiUoQaaEbKhsQye"},
+                           headers={'X-API-KEY': api_key},
                            params={'query': query, 'limit': result_limit, 'fields': fields})
 
     rsp.raise_for_status()

@@ -26,7 +26,7 @@ def main():
             # system_prompt =
         )
         
-        result = agent.run("Hello! im yash. Please provide me papers on using agentic ai in material sciences")
+        result = agent.run("Please provide me research papers on using ai in quantum mechanics")
         print(result)
 
 if __name__ == "__main__":

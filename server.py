@@ -51,6 +51,36 @@ def extract_google_scholar_papers(data: dict):
 
     return papers
 
+def extract_semantic_scholar_papers(data: list[dict]) -> list[dict]:
+    papers = []
+
+    for result in data:
+        title = result.get("title", "N/A")
+        link = result.get("url", "N/A")
+        year = result.get("year", "N/A")
+        venue = result.get("venue", "N/A")
+        cited = result.get("citationCount", 0)
+        abstract = result.get("abstract") or "No abstract available."
+
+        authors_list = result.get("authors", [])
+        authors = ", ".join([author.get("name", "") for author in authors_list if author.get("name")])
+
+        pdf_url = result.get("openAccessPdf", {}).get("url", None)
+
+        papers.append({
+            "title": title,
+            "authors": authors,
+            "year": year,
+            "abstract": abstract.strip(),
+            "venue": venue,
+            "cited_by": cited,
+            "link": link,
+            "pdf_url": pdf_url
+        })
+
+    return papers
+
+
 # @mcp.tool
 # def Google_scholar_search(topic:str) -> str:
 #     """
@@ -133,7 +163,7 @@ def Semantic_Scholar_search(query="", result_limit=5) -> list[dict]:
     rsp.raise_for_status()
     results = rsp.json()
 
-    return results.get("data", [])
+    return extract_semantic_scholar_papers(results.get("data", []))
 
 
 if __name__ == "__main__":

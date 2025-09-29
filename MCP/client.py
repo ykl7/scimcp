@@ -14,7 +14,7 @@ def main():
     
     server_params = StdioServerParameters(
         command="python",
-        args=["server.py"],
+        args=["MCP/server.py"],
         env={**os.environ}
     )
     

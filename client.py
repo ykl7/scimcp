@@ -26,8 +26,9 @@ def main():
             # system_prompt =
         )
         
-        result = agent.run("Give me research papers on material science and ai, and im fine with them not being peer reviewed")
+        result = agent.run("In a thermodynamic system with 3 components and 2 phases, what is the number of degrees of freedom?")
         print(result)
 
 if __name__ == "__main__":
     main()
+    

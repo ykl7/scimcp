@@ -6,7 +6,7 @@ from langchain_community.utilities import WikipediaAPIWrapper
 from langchain_community.tools import WikipediaQueryRun
 from langchain_community.agent_toolkits.load_tools import load_tools
 
-class General_ToolManager:
+class General_Tools:
     def __init__(self):
         self.wikipedia_tool = self._load_wikipedia_tool()
         self.arxiv_tool = self._load_arxiv_tool()
@@ -49,7 +49,7 @@ class General_ToolManager:
         response.raise_for_status()
         return self._extract_semantic_scholar_papers(response.json().get("data", []))
 
-    def _extract_google_scholar_papers(self, data: dict): #Just clearer functions, no need for the user to acess this
+    def _extract_google_scholar_papers(self, data: dict):
         papers = []
         for result in data.get("organic_results", []):
             title = result.get("title", "N/A")
@@ -97,3 +97,84 @@ class General_ToolManager:
                 "pdf_url": pdf_url
             })
         return papers
+
+
+_general_tools = General_Tools()
+
+
+def general_tools_manager(mcp):
+    """Register all research-related tools"""
+    
+    @mcp.tool(name="Google scholar search", enabled=True)
+    def google_scholar_search(topic: str, num_results: int = 5) -> list[dict]:
+        """
+        This tool queries Google Scholar via SerpAPI to return research papers. Always start Research papers query with this
+        
+        Args:
+            topic: The search query for academic papers.
+            num_results: Number of top papers to return.
+
+        Returns:
+                A list of dictionaries for each paper with:
+                - title
+                - abstract
+                - authors (list of dicts with name)
+                - year
+                - venue
+                - citationCount
+                - url (main link)
+        """
+        return _general_tools.google_scholar_search(topic, num_results)
+
+    @mcp.tool(name="Semantic scholar search", enabled=True) 
+    def semantic_scholar_search(query: str = "", result_limit: int = 5) -> list[dict]:
+        """
+        This tool retrieves relevant research papers from Semantic Scholar based on a user-defined query.
+
+        Args:
+            query (str): The search query string, which can include keywords, author names, fields of study, publication venues, or other metadata.
+            result_limit (int): The maximum number of papers to return (default is 5).
+
+        Returns:
+            A list of the top matching papers with rich metadata for each, including:
+                - title
+                - abstract
+                - citation count
+                - tldr (short summary if available)
+                - fields of study
+                - publication year
+                - authors
+                - open access status
+                - direct link to PDF (if available)
+                - paper URL
+                - venue (conference or journal name)
+            
+        This tool is useful for literature reviews, sourcing papers for research, or finding up-to-date work on a specific topic.
+        """
+        return _general_tools.semantic_scholar_search(query, result_limit)
+
+    @mcp.tool(name="Arxiv search", enabled=True)
+    def arxiv_search(topic: str) -> str:
+        """
+        This tool is used to search and retrieve research papers from arxiv database. Use this when the user is fine with papers not being peer reviewed
+
+        Args:
+            topic(str): Takes in the topic for which the research papers are needed, format it such that the arxiv api understands it
+
+        Returns:
+            Provides all the meta data that we can get from th arxiv api
+        """
+        return _general_tools.arxiv_tool.run(topic)
+
+    @mcp.tool(name="Wikipedia search", enabled=True)
+    def wikipedia_search(topic: str) -> str:
+        """
+        This tool is used to acces the wikipedia search and Useful for retrieving general scientific concepts, background knowledge, and material property definitions.
+
+        Args:
+            topic(str): This is the topic string, for which the wikipedia api will retrieve relavent results for.
+
+        Returns:
+            The summary strings of the topic that was given at the input
+        """
+        return _general_tools.wikipedia_tool.run(topic)

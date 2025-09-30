@@ -2,7 +2,7 @@
 
 ### Current Repo status
 
-Currently the repo contains Fastmcp powered agentic frame work for material science research. The repo contains two main category of tools, General tools(Google scholar, semantic scholar, arxiv and wikipedia) and 103 Material science tools. Both the tools are connected via FastMCP to smolagent library wrapped LLM. Finally, the output includes, a complete information on meta data of requested domain research papers.
+Currently the repo contains Fastmcp powered agentic frame work for material science research. The repo contains two main category of tools, General tools(Google scholar, semantic scholar, arxiv and wikipedia) and 103 Material science tools. Both the tools are connected via FastMCP to smolagent library wrapped LLM. Finally, the output includes, a complete information on meta data of requested domain research papers and questions.
 
 ### Server.py
 
@@ -32,7 +32,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 Go through this documentation for more details https://docs.astral.sh/uv/getting-started/installation/
 
-After that, Create a venv using ```uv venv``` , source it and then use ```uv sync``` to get all the dependencies from the clones repo
+After that, Create a venv using ```uv venv``` , source it and then use ```uv sync``` to get all the dependencies from the cloned repo
 
 Furthermore, this repo needs you have following api_keys:
 1) Semantic scholar api (https://www.semanticscholar.org/product/api#api-key)
@@ -44,7 +44,8 @@ After setting up the environment, dependencies etc, please run following from ``
 ```bash
 python MCP/server.py
 ```
-Now, to run the client, each general purpose tool gets prompted based on certain keywords.
+This starts the FastMCP server, now in **another terminal** we access the server tools from client.py.
+To run the client, each general purpose tool gets prompted based on certain keywords.
 ```bash
 # Google scholar (No special prompt required)
 python MCP/client.py -- "Give me research papers on AI in material science"
@@ -61,7 +62,7 @@ python MCP/client.py -- "What is a covalent bond"
 ### Limitations
 
 - There is no chat.completion implemented yet, so for now any query to llm is to enterd in the cli
-- ```Mat_Sci_tools.py``` are still havent completely been tested.
+- The tools in ```Mat_Sci_tools.py```  still havent completely been tested completely.
 
 
 

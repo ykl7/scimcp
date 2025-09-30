@@ -3,7 +3,7 @@ name = "scimcp"
 version = "0.1.0"
 description = "Dependencies for mcp server"
 readme = "README.md"
-requires-python = ">=3.11"    #Usually its 3.11>
+requires-python = ">=3.11,<3.13"    #Usually its 3.11>
 dependencies = [
     "arxiv>=2.2.0",
     "docling>=2.52.0",
@@ -14,6 +14,6 @@ dependencies = [
     "langchain-community>=0.3.29",
     "openai>=1.107.2",
     "semanticscholar>=0.11.0",
-    "smolagents[mcp,toolkit]>=1.21.3",
+    "smolagents[mcp,toolkit]>=1.22.0",
     "wikipedia>=1.4.0",
 ]

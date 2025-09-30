@@ -2,9 +2,12 @@
 
 import os, requests
 from langchain.tools import Tool
-from langchain_community.utilities import WikipediaAPIWrapper
-from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper, ArxivAPIWrapper
+from langchain_community.tools import WikipediaQueryRun, ArxivQueryRun
 from langchain_community.agent_toolkits.load_tools import load_tools
+from typing import List, Dict, Any
+import json
+
 
 class General_Tools:
     def __init__(self):
@@ -12,7 +15,7 @@ class General_Tools:
         self.arxiv_tool = self._load_arxiv_tool()
 
     def _load_wikipedia_tool(self):
-        wrapper = WikipediaAPIWrapper()
+        wrapper = WikipediaAPIWrapper(top_k_results=5)
         wiki = WikipediaQueryRun(api_wrapper=wrapper)
         return Tool(
             name="Wikipedia Search",
@@ -21,14 +24,15 @@ class General_Tools:
         )
 
     def _load_arxiv_tool(self):
-        arxiv = load_tools(["arxiv"])[0]
+        wrapper = ArxivAPIWrapper(top_k_results=5, load_all_available_meta=True)
+        arxiv = ArxivQueryRun(api_wrapper=  wrapper)
         return Tool(
             name="Arxiv Search",
             func=arxiv.run,
             description="Search academic papers on arXiv."
         )
 
-    def google_scholar_search(self, topic: str, num_results: int = 5) -> list[dict]:
+    def google_scholar_search_tool(self, topic: str, num_results: int = 5) -> List[Dict[str, Any]]:
         params = {
             "engine": "google_scholar",
             "q": topic,
@@ -39,7 +43,7 @@ class General_Tools:
         response.raise_for_status()
         return self._extract_google_scholar_papers(response.json())
 
-    def semantic_scholar_search(self, query: str, result_limit: int = 5) -> list[dict]:
+    def semantic_scholar_search_tool(self, query: str, result_limit: int = 5) -> List[Dict[str, Any]]:  # Changed to str
         fields = "title,abstract,citationCount,tldr,fieldsOfStudy,year,authors,isOpenAccess,openAccessPdf,url,venue"
         response = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
@@ -49,7 +53,7 @@ class General_Tools:
         response.raise_for_status()
         return self._extract_semantic_scholar_papers(response.json().get("data", []))
 
-    def _extract_google_scholar_papers(self, data: dict):
+    def _extract_google_scholar_papers(self, data: dict) -> List[Dict[str, Any]]:
         papers = []
         for result in data.get("organic_results", []):
             title = result.get("title", "N/A")
@@ -74,7 +78,7 @@ class General_Tools:
             })
         return papers
 
-    def _extract_semantic_scholar_papers(self, results: list[dict]):
+    def _extract_semantic_scholar_papers(self, results: list[dict]) -> List[Dict[str, Any]]:
         papers = []
         for result in results:
             title = result.get("title", "N/A")
@@ -90,14 +94,13 @@ class General_Tools:
                 "title": title,
                 "authors": authors,
                 "year": year,
-                "abstract": abstract.strip(),
+                "abstract": abstract.strip() if abstract else "No abstract available",
                 "venue": venue,
                 "cited_by": cited,
                 "link": link,
                 "pdf_url": pdf_url
             })
         return papers
-
 
 _general_tools = General_Tools()
 
@@ -108,50 +111,29 @@ def general_tools_manager(mcp):
     @mcp.tool(name="Google scholar search", enabled=True)
     def google_scholar_search(topic: str, num_results: int = 5) -> list[dict]:
         """
-        This tool queries Google Scholar via SerpAPI to return research papers. Always start Research papers query with this
+        This tool queries Google Scholar via SerpAPI to return research papers. Always start Research papers query with this unless explicitly mentioned.
         
         Args:
             topic: The search query for academic papers.
             num_results: Number of top papers to return.
 
         Returns:
-                A list of dictionaries for each paper with:
-                - title
-                - abstract
-                - authors (list of dicts with name)
-                - year
-                - venue
-                - citationCount
-                - url (main link)
+            Provides all the meta data and their information that the api provides, but always include abstract if available!
         """
-        return _general_tools.google_scholar_search(topic, num_results)
+        return _general_tools.google_scholar_search_tool(topic, num_results)
 
     @mcp.tool(name="Semantic scholar search", enabled=True) 
     def semantic_scholar_search(query: str = "", result_limit: int = 5) -> list[dict]:
         """
-        This tool retrieves relevant research papers from Semantic Scholar based on a user-defined query.
-
+        This tool retrieves relevant research papers from Semantic Scholar based on a user-defined query.It always include abstractin output, if its available
         Args:
             query (str): The search query string, which can include keywords, author names, fields of study, publication venues, or other metadata.
             result_limit (int): The maximum number of papers to return (default is 5).
 
         Returns:
-            A list of the top matching papers with rich metadata for each, including:
-                - title
-                - abstract
-                - citation count
-                - tldr (short summary if available)
-                - fields of study
-                - publication year
-                - authors
-                - open access status
-                - direct link to PDF (if available)
-                - paper URL
-                - venue (conference or journal name)
-            
-        This tool is useful for literature reviews, sourcing papers for research, or finding up-to-date work on a specific topic.
+            Provides all the meta data and their information that the api provides, but always include abstract if available!
         """
-        return _general_tools.semantic_scholar_search(query, result_limit)
+        return _general_tools.semantic_scholar_search_tool(query, result_limit)
 
     @mcp.tool(name="Arxiv search", enabled=True)
     def arxiv_search(topic: str) -> str:

@@ -1,11 +1,13 @@
-import os, argparse
+import os, argparse, time, sys
 from smolagents import CodeAgent, ToolCallingAgent
 from smolagents.models import AzureOpenAIServerModel
 from smolagents.tools import ToolCollection
-# from smolagents.templates import PromptTemplates
 from mcp import StdioServerParameters
 from smolagents.utils import AgentGenerationError
-import time
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from Tool_processing.Relevant_tools import get_relevant
+from Tools.Mat_Sci_tools import MaterialScienceToolRegistry
 
 def main():
     parser = argparse.ArgumentParser(description="Run an AI agent query using smolagents.")
@@ -13,6 +15,9 @@ def main():
     args = parser.parse_args()
 
     query = " ".join(args.query)
+
+    toolnames = MaterialScienceToolRegistry.toolnames
+    relevant_tools = get_relevant(query = query, toolnames = toolnames)
 
     model = AzureOpenAIServerModel(
         model_id="gpt-4",
@@ -33,6 +38,10 @@ def main():
     )
     
     with ToolCollection.from_mcp(server_params, trust_remote_code=True, structured_output=True) as tool_collection:
+        all_tools = tool_collection.tools
+        filtered_tools = [t for t in all_tools if t.name in relevant_tools]
+        
+
         # agent = CodeAgent(
         #     tools=tool_collection.tools, 
         #     model=model,
@@ -43,7 +52,7 @@ def main():
         # )
 
         agent = ToolCallingAgent(
-            tools=tool_collection.tools,
+            tools=filtered_tools,
             model= model
         )
         
@@ -51,11 +60,12 @@ def main():
         for attempt in range(3):
             try:
                 result = agent.run(query)
+                # print(result)
                 break
             except AgentGenerationError:
                 print("Rate limit")
                 time.sleep(2)
-        # print(result)
+
 
 if __name__ == "__main__":
     main()

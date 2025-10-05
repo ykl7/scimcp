@@ -8,7 +8,7 @@ from Tools.Mat_Sci_tools import Mat_sci_ToolManager
 
 mcp = FastMCP("Scifi_Agent")
 general_tools_manager(mcp)
-Mat_sci_ToolManager(mcp)
+materials_Toolmanager = Mat_sci_ToolManager(mcp) 
 
 if __name__ == "__main__":
     mcp.run()

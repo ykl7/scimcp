@@ -43,7 +43,7 @@ class General_Tools:
         response.raise_for_status()
         return self._extract_google_scholar_papers(response.json())
 
-    def semantic_scholar_search_tool(self, query: str, result_limit: int = 5) -> List[Dict[str, Any]]:  # Changed to str
+    def semantic_scholar_search_tool(self, query: str, result_limit: int = 5) -> List[Dict[str, Any]]:
         fields = "title,abstract,citationCount,tldr,fieldsOfStudy,year,authors,isOpenAccess,openAccessPdf,url,venue"
         response = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",

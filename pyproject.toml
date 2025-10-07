@@ -12,6 +12,7 @@ dependencies = [
     "huggingface-hub>=0.34.4",
     "langchain>=0.3.27",
     "langchain-community>=0.3.29",
+    "mp-api>=0.45.11",
     "openai>=1.107.2",
     "semanticscholar>=0.11.0",
     "smolagents[mcp,toolkit]>=1.22.0",

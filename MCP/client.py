@@ -17,7 +17,7 @@ def main():
     query = " ".join(args.query)
 
     toolnames = MaterialScienceToolRegistry.toolnames
-    relevant_tools = get_relevant(query = query, toolnames = toolnames)
+    # relevant_tools = get_relevant(query = query, toolnames = toolnames)
 
     model = AzureOpenAIServerModel(
         model_id="gpt-4",
@@ -39,6 +39,9 @@ def main():
     
     with ToolCollection.from_mcp(server_params, trust_remote_code=True, structured_output=True) as tool_collection:
         all_tools = tool_collection.tools
+        all_toolnames = [t.name for t in all_tools]
+
+        relevant_tools = get_relevant(query=query, toolnames=all_toolnames)
         filtered_tools = [t for t in all_tools if t.name in relevant_tools]
         
 

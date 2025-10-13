@@ -1,13 +1,14 @@
 # General_tools.py
 
-import os, requests
+import os, requests,sys
 from langchain.tools import Tool
 from langchain_community.utilities import WikipediaAPIWrapper, ArxivAPIWrapper
 from langchain_community.tools import WikipediaQueryRun, ArxivQueryRun
 from langchain_community.agent_toolkits.load_tools import load_tools
 from typing import List, Dict, Any
 import json
-
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from Tools.ar5iv_arxiv_search import ar5iv_search
 
 class General_Tools:
     def __init__(self):
@@ -24,7 +25,7 @@ class General_Tools:
         )
 
     def _load_arxiv_tool(self):
-        wrapper = ArxivAPIWrapper(top_k_results=5, load_all_available_meta=True)
+        wrapper = ArxivAPIWrapper(top_k_results=5, load_all_available_meta=True,)
         arxiv = ArxivQueryRun(api_wrapper=  wrapper)
         return Tool(
             name="Arxiv Search",
@@ -108,7 +109,7 @@ _general_tools = General_Tools()
 def general_tools_manager(mcp):
     """Register all research-related tools"""
     
-    @mcp.tool(name="Google scholar search", enabled=True)
+    @mcp.tool(name="Google scholar search", enabled=False)  # Disabled by default due to API costs
     def google_scholar_search(topic: str, num_results: int = 5) -> list[dict]:
         """
         This tool queries Google Scholar via SerpAPI to return research papers. Always start Research papers query with this unless explicitly mentioned.
@@ -144,10 +145,28 @@ def general_tools_manager(mcp):
             topic(str): Takes in the topic for which the research papers are needed, format it such that the arxiv api understands it
 
         Returns:
-            Provides all the meta data that we can get from th arxiv api
+            Provides all the meta data that we can get from the arxiv api
         """
         return _general_tools.arxiv_tool.run(topic)
+    
+    @mcp.tool(name="Ar5iv search", enabled=True)
+    def ar5iv_search_tool(query: str, top_k: int = 5)-> list[dict]:
+        
+        """
+        This tool is used to search and retrieve research papers from ar5iv database, which has better formatting than arxiv. Use this when the user is fine with papers not being peer reviewed and want full text of paper.
+        The output MUST include abstract and FULL TEXT, with a summary section wise if available. Do not wait for user to ask for full text, provide it in the first go if available.
+        Args:
+            query(str): Takes in the topic for which the research papers are needed, format it such that the ar5iv api understands it
+            top_k(int): Number of top results to return (default is 5)
 
+        Returns:
+            - Title
+            - Authors
+            - Abstract
+            - Full text (section wise if available) COMPULSORY if available
+        """
+        return ar5iv_search(query, top_k)
+    
     @mcp.tool(name="Wikipedia search", enabled=True)
     def wikipedia_search(topic: str) -> str:
         """

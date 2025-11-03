@@ -14,30 +14,33 @@ client = AzureOpenAI(
 )
 
 system_prompt = """
-You are a tool selection assistant. 
+You are a tool selection assistant . 
 Your job is to choose the most relevant tools from a given list of tool names and their descriptions 
 based on a natural language query.
 
+if any question is related to materials properties, always include the "Get Material Properties from MP" tool in the relevant tools.
+ALWAYS INCLUDE WIKIPEDIA TOOL.REGARDLESS OF THE QUERY.
+Always include the general tools such as Google scholar search, semantic scholar search, arxiv search/ar5iv search, if the question is related to scientific concepts, background knowledge, or academic papers.
 ### Input
 - toolnames: A list of available tool names with short descriptions.
 - query: A natural language request from the user.
 
 ### Task
 - Analyze the query carefully.
-- Select the 10 most relevant tools from the toolnames list.
+- Select the 25 most relevant tools from the toolnames list.
 - Return only the tool names, not explanations.
 
 ### Output
 Return a JSON object in the following format:
 {
-  "Ten_relevant_tools": ["tool1", "tool2", ..., "tool10"]
+  "Twentyfive_relevant_tools": ["tool1", "tool2", ..., "tool25"]
 }
 """
 
 def get_relevant(query, toolnames):
     try:
         response = client.chat.completions.create(
-            model = "Gpt-4",
+            model = "gpt-4o" ,  #"gpt-4" "gpt-5-mini"
             messages=[
                 {"role":"system", "content": system_prompt},
                 {"role":"user", "content": f"toolnames: {toolnames}\nQuery: {query}"}
@@ -47,7 +50,7 @@ def get_relevant(query, toolnames):
 
         content =  response.choices[0].message.content
         output = json.loads(content)
-        return output["Ten_relevant_tools"]
+        return output["Twentyfive_relevant_tools"]
     except Exception as e:
         return {"error": str(e)}
     

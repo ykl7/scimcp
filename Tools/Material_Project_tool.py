@@ -1,73 +1,129 @@
-# Material_Project_tool
-import os, sys
+# Material_Project_tool.py
+import os, re, sys
 from mp_api.client import MPRester
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from Tools.Material_Project_search_tool_mapping import get_search_map
 
 class MaterialProjectTool:
 
-    Valid_fields = ['builder_meta', 'nsites', 'elements', 'nelements', 'composition', 'composition_reduced', 'formula_pretty', 'formula_anonymous', 'chemsys', 'volume', 'density', 'density_atomic', 'symmetry', 'property_name', 'deprecated', 'deprecation_reasons', 'last_updated', 'origins', 'warnings', 'structure', 'task_ids', 'uncorrected_energy_per_atom', 'energy_per_atom', 'formation_energy_per_atom', 'energy_above_hull', 'is_stable', 'equilibrium_reaction_energy_per_atom', 'decomposes_to', 'xas', 'grain_boundaries', 'band_gap', 'cbm', 'vbm', 'efermi', 'is_gap_direct', 'is_metal', 'es_source_calc_id', 'bandstructure', 'dos', 'dos_energy_up', 'dos_energy_down', 'is_magnetic', 'ordering', 'total_magnetization', 'total_magnetization_normalized_vol', 'total_magnetization_normalized_formula_units', 'num_magnetic_sites', 'num_unique_magnetic_sites', 'types_of_magnetic_species', 'bulk_modulus', 'shear_modulus', 'universal_anisotropy', 'homogeneous_poisson', 'e_total', 'e_ionic', 'e_electronic', 'n', 'e_ij_max', 'weighted_surface_energy_EV_PER_ANG2', 'weighted_surface_energy', 'weighted_work_function', 'surface_anisotropy', 'shape_factor', 'has_reconstructed', 'possible_species', 'has_props', 'theoretical', 'database_IDs']
     def __init__(self, api_key: str = None):
-        self.api_key = api_key or os.getenv("MP_API")
+        self.api_key = api_key or os.getenv("MP_API_KEY")
         self.mpr = MPRester(self.api_key)
+        self.search_map = get_search_map(self.mpr)
+        self.formula_domains = {
+            "summary", "thermo", "oxidation_states", "absorption", "task", "xas",
+            "base_electrodes", "conversion_electrodes", "chemenv", "alloys", "synthesis"
+        }
+        self.material_id_domains = {
+            "eos", "similarity", "grain_boundaries", "surface_properties", "phonon",
+            "elasticity", "dielectric", "piezoelectric", "magnetism", "robocrys",
+            "provenance", "bonds", "electronic_structure", "electronic_structure/bandstructure",
+            "electronic_structure/dos"
+        }
+        self.other_domains = {"synthesis", "robocrys"} 
 
-    def _mp_cleaner(self,summary, fields):
-        final_output = {}
-
-        for field in fields:
-            if hasattr(summary, field):
-                final_output[field] = getattr(summary, field)
-        
-        return final_output
-
-    def get_mat_summary(self,mat_formula:str, fields:list = ["material_id","band_gap", "formula_pretty", "theoretical", "volume", "density"]):
-
-        invalid = [f for f in fields if f != "material_id" and f not in self.Valid_fields]
-        if invalid:
-            fields = [f"Invalid field(s): {invalid}\n Please choose from: {self.Valid_fields}"]
-            return fields
-        
-        summary = self.mpr.materials.summary.search(formula=mat_formula,fields=fields)
-        if not summary:
-            try:
-                elements = "-".join(sorted(["".join(g) for g in __import__('re').findall(r'[A-Z][a-z]*', mat_formula)]))
-                summary = self.mpr.materials.summary.search(chemsys=elements, fields=fields)
-            except Exception as e:
-                return [{"error": f"No materials found and fallback failed: {e}"}]
-
-        if not summary:
-            return [{"error": f"No materials found for formula '{mat_formula}'"}]
-        cleaned = [self._mp_cleaner(s, fields) for s in summary]
-
-        return cleaned
+    def _mp_cleaner(self, summary, fields):
+        return {field: getattr(summary, field, None) for field in fields}
     
-_mp_mat_sum = MaterialProjectTool()
+    def _get_material_ids(self, mat_formula: str, top_k: int = 1):
+        try:
+            results = self.search_map["summary"](formula=mat_formula, fields=["material_id", "formula_pretty"])
+            if not results:
+                elements = "-".join(sorted(re.findall(r'[A-Z][a-z]*', mat_formula)))
+                results = self.search_map["summary"](chemsys=elements, fields=["material_id", "formula_pretty"])
+            return [r.material_id for r in results][:top_k]
+        except Exception as e:
+            return []
+        
+    def get_mat_properties(self, mat_formula: str,
+                        fields: list = ["material_id", "band_gap", "formula_pretty", "theoretical", "volume", "density"],
+                        domain: str = "summary", give_domain_list: bool = False, top_k: int = 1):
+
+        if give_domain_list:
+            return {
+                "formula_query_domains": sorted(self.formula_domains),
+                "material_id_query_domains": sorted(self.material_id_domains),
+                "other_query_domains": sorted(self.other_domains),
+                "all_domains": sorted(self.search_map.keys())
+            }
+
+        if domain not in self.search_map:
+            return [{"error": f"Invalid domain '{domain}'. Choose from: {list(self.search_map.keys())}"}]
+
+        search_fn = self.search_map[domain]
+
+        try:
+            # Case 1: Formula-based domains
+            if domain in self.formula_domains:
+                if domain == "summary":
+                    results = search_fn(formula=mat_formula, fields=fields)
+                    if not results:
+                        elements = "-".join(sorted(re.findall(r'[A-Z][a-z]*', mat_formula)))
+                        results = search_fn(chemsys=elements, fields=fields)
+                    if not results:
+                        return [{"error": f"No materials found for formula '{mat_formula}'"}]
+                    return [self._mp_cleaner(r, fields) for r in results[:top_k]]
+
+                else:
+                    material_ids = self._get_material_ids(mat_formula, top_k)
+                    if not material_ids:
+                        return [{"error": f"Could not find any material_id for formula '{mat_formula}'"}]
+                    results = search_fn(material_ids=material_ids, fields=fields)
+                    if not results:
+                        return [{"error": f"No data found in domain '{domain}' for material_id(s): {material_ids}"}]
+                    return [self._mp_cleaner(r, fields) for r in results]
+
+            # Case 2: Material-ID-based domains (always requires ID lookup)
+            elif domain in self.material_id_domains:
+                material_ids = self._get_material_ids(mat_formula, top_k)
+                if not material_ids:
+                    return [{"error": f"Could not find material_id for formula '{mat_formula}'"}]
+                results = search_fn(material_ids=material_ids, fields=fields)
+                if not results:
+                    return [{"error": f"No data found for material_id(s) {material_ids} in domain '{domain}'"}]
+                return [self._mp_cleaner(r, fields) for r in results]
+
+            # Case 3: Other domains
+            else:
+                return [{"error": f"The domain '{domain}' may require special query types (e.g., keywords). Currently unsupported via formula-only interface."}]
+
+        except Exception as e:
+            return [{
+                "error": f"Query failed: {e}",
+                "valid_fields": f"Please try again with these valid fields for the domain :{getattr(search_fn, 'available_fields', [])}"
+            }]
+
+
+# Singleton instance
+_mp_mat_tool = MaterialProjectTool()
 
 def mp_manager(mcp):
 
     @mcp.tool(name="Get Material Properties from MP", enabled=True)
-    def get_materials_properties(mat_formula:str, fields:list = ["material_id","band_gap", "formula_pretty", "theoretical", "volume", "density"]):
+    def get_materials_properties(mat_formula: str, fields: list = ["material_id", "band_gap", "formula_pretty", "theoretical", "volume", "density"], domain: str = "summary", give_domain_list: bool = False):
         """
-        This tool provides material properties from the Materials Project database. !! ALWAYS USE THIS TOOL WHEN ANY PROPERTIES ARE ASKED ABOUT A MATERIAL !!
-        (e.g., band gap, volume, density, formation energy, etc.), or any other 
-        quantitative/material-specific information.
+        This tool provides material properties from the Materials Project database.
+        THE TOOL ALWAYS PROVIDES THE DOMAIN LIST IF THE give_domain_list INPUT IS SET TO TRUE. !! WHEN CALLING THIS TOOL FOR FIRST TIME, ALWAYS SET give_domain_list = TRUE!!
+        !! ALWAYS INCLUDE THE DOMAIN OF THE PROPERTY SO THAT THE CORRECT ENDPOINT IS USED!!
+        example: 
+                - To get magnetic properties, set domain="magnetism"
+                - To get Thermal properties, set domain="thermo"
+                - summary domain is default for general properties
+        !! ALWAYS USE THIS TOOL WHEN ANY PROPERTIES ARE ASKED ABOUT A MATERIAL !!
 
-        ALWAYS PROVIDE THE MATERIAL FORMULA WHEN ASKING FOR PROPERTIES.
         Inputs:
-            - mat_formula (str): The chemical formula of the material (e.g., "NaCl", "LiFePO4").
-            - fields (list[str]): A list of property fields to retrieve 
-                                (e.g., ["band_gap", "density", "volume"]).
+            - mat_formula (str): Chemical formula (e.g., "NaCl", "LiFePO4")
+            - fields (list[str]): Fields to retrieve (e.g., ["band_gap", "density"])
+            - domain (str): Which MP endpoint to query (default="summary")
 
         Output:
-            - A list of dictionaries, where each dictionary contains the requested property values 
-            for the material.
+            - A list of dicts with the requested fields
         """
-
-        return _mp_mat_sum.get_mat_summary(mat_formula, fields)
-
+        return _mp_mat_tool.get_mat_properties(mat_formula, fields, domain, give_domain_list)
 
 
-if __name__ == "__main__":
-    fields = ["material_id",'formula_pretty', 'density', 'volume', 'formation_energy_per_atom']
-    matp = MaterialProjectTool()
-    results = matp.get_mat_summary("Al2Fe", fields)
-
-    print(results)
+# if __name__ == "__main__":
+#     fields = ['builder_meta', 'alloy_pair', 'pair_id']
+#     matp = MaterialProjectTool()
+#     results = matp.get_mat_properties("NaCl", fields, domain="summary")
+#     print(results)

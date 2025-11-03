@@ -116,7 +116,7 @@ def ar5iv_search(query: str, top_k: int = 5) -> list:
 
 if __name__ == "__main__":
     output_path = "test.json"
-    data = ar5iv_search("AI in material science", top_k=2)
+    data = ar5iv_search("Electronic Structure and Vibrational Stability of Copper-substituted Lead Apatite (LK-99) Cabezas-Escares 2024", top_k=2)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"Parsed data written to: {output_path}")

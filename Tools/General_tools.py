@@ -1,7 +1,8 @@
 # General_tools.py
 
-import os, requests,sys
-from langchain.tools import Tool
+import os, requests,sys,re
+from itertools import islice
+from langchain_core.tools import Tool
 from langchain_community.utilities import WikipediaAPIWrapper, ArxivAPIWrapper
 from langchain_community.tools import WikipediaQueryRun, ArxivQueryRun
 from langchain_community.agent_toolkits.load_tools import load_tools
@@ -14,7 +15,17 @@ class General_Tools:
     def __init__(self):
         self.wikipedia_tool = self._load_wikipedia_tool()
         self.arxiv_tool = self._load_arxiv_tool()
-
+    
+    def _sanitize_query(self, query: str, max_keywords: int = 5) -> str:
+        """
+        Simplifies complex keyword dumps from LLMs into shorter queries.
+        Keeps only relevant keywords (alphanumeric words).
+        """
+        # Clean query and extract keywords
+        keywords = re.findall(r"\b[a-zA-Z0-9_+\-\.]+\b", query)
+        short_query = " ".join(islice(keywords, max_keywords))
+        return short_query
+    
     def _load_wikipedia_tool(self):
         wrapper = WikipediaAPIWrapper(top_k_results=5)
         wiki = WikipediaQueryRun(api_wrapper=wrapper)
@@ -25,7 +36,7 @@ class General_Tools:
         )
 
     def _load_arxiv_tool(self):
-        wrapper = ArxivAPIWrapper(top_k_results=5, load_all_available_meta=True,)
+        wrapper = ArxivAPIWrapper(top_k_results=5, load_all_available_meta=True)
         arxiv = ArxivQueryRun(api_wrapper=  wrapper)
         return Tool(
             name="Arxiv Search",
@@ -45,6 +56,7 @@ class General_Tools:
         return self._extract_google_scholar_papers(response.json())
 
     def semantic_scholar_search_tool(self, query: str, result_limit: int = 5) -> List[Dict[str, Any]]:
+        query = self._sanitize_query(query)
         fields = "title,abstract,citationCount,tldr,fieldsOfStudy,year,authors,isOpenAccess,openAccessPdf,url,venue"
         response = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
@@ -109,73 +121,101 @@ _general_tools = General_Tools()
 def general_tools_manager(mcp):
     """Register all research-related tools"""
     
-    @mcp.tool(name="Google scholar search", enabled=False)  # Disabled by default due to API costs
+    @mcp.tool(name="Google Scholar Search", enabled=False)
     def google_scholar_search(topic: str, num_results: int = 5) -> list[dict]:
         """
-        This tool queries Google Scholar via SerpAPI to return research papers. Always start Research papers query with this unless explicitly mentioned.
+        Search for academic papers using Google Scholar via SerpAPI.
+        
+        Best for: Broad academic searches with high-quality citation metrics.
+        
+        Returns: Paper metadata including title, authors, year, abstract, venue, 
+        citation count, and links.
         
         Args:
-            topic: The search query for academic papers.
-            num_results: Number of top papers to return.
-
-        Returns:
-            Provides all the meta data and their information that the api provides, but always include abstract if available!
+            topic: Search query (keywords, author names, or specific topics)
+            num_results: Number of papers to return (default: 5)
+            
+        Note: This tool is disabled by default due to API costs.
         """
         return _general_tools.google_scholar_search_tool(topic, num_results)
 
-    @mcp.tool(name="Semantic scholar search", enabled=True) 
+    @mcp.tool(name="Semantic Scholar Search", enabled=False)
     def semantic_scholar_search(query: str = "", result_limit: int = 5) -> list[dict]:
         """
-        This tool retrieves relevant research papers from Semantic Scholar based on a user-defined query.It always include abstractin output, if its available
+        Search for research papers from Semantic Scholar API.
+        
+        Best for: Quick metadata lookups when you need paper details before 
+        retrieving full text. Provides clean structured data.
+        
+        Returns: Paper metadata including title, authors, abstract, citation count, 
+        year, venue, link, and PDF URL if open access.
+        
         Args:
-            query (str): The search query string, which can include keywords, author names, fields of study, publication venues, or other metadata.
-            result_limit (int): The maximum number of papers to return (default is 5).
-
-        Returns:
-            Provides all the meta data and their information that the api provides, but always include abstract if available!
+            query: Search query (keywords, author names, or topics)
+            result_limit: Maximum number of papers to return (default: 5)
+            
+        Note: This tool is disabled by default.
         """
         return _general_tools.semantic_scholar_search_tool(query, result_limit)
 
-    @mcp.tool(name="Arxiv search", enabled=True)
+    @mcp.tool(name="ArXiv Search", enabled=True)
     def arxiv_search(topic: str) -> str:
         """
-        This tool is used to search and retrieve research papers from arxiv database. Use this when the user is fine with papers not being peer reviewed
-
+        Search for research papers on arXiv.
+        
+        Best for: Computer science, physics, mathematics, and related fields. 
+        Provides abstracts and metadata, useful for initial paper discovery.
+        
+        Returns: Paper metadata including title, authors, abstract, publication date, 
+        and links.
+        
         Args:
-            topic(str): Takes in the topic for which the research papers are needed, format it such that the arxiv api understands it
-
-        Returns:
-            Provides all the meta data that we can get from the arxiv api
+            topic: Search query formatted as a natural sentence or specific paper/author 
+            name (e.g., "machine learning transformers" or "attention is all you need")
         """
         return _general_tools.arxiv_tool.run(topic)
     
-    @mcp.tool(name="Ar5iv search", enabled=True)
-    def ar5iv_search_tool(query: str, top_k: int = 5)-> list[dict]:
-        
+    @mcp.tool(name="Ar5iv Search", enabled=True)
+    def ar5iv_search_tool(query: str, top_k: int = 3) -> list[dict]:
         """
-        This tool is used to search and retrieve research papers from ar5iv database, which has better formatting than arxiv. Use this when the user is fine with papers not being peer reviewed and want full text of paper.
-        The output MUST include abstract and FULL TEXT, with a summary section wise if available. Do not wait for user to ask for full text, provide it in the first go if available.
+        Search and retrieve full-text research papers from ar5iv database.
+        If paper id is known, set top_k=1 for direct retrieval.
+        
+        Best for: Accessing complete paper content with better formatting than arXiv. 
+        Use after finding relevant papers with other search tools.
+        
+        Returns: Comprehensive paper data including title, authors, abstract, and 
+        full text organized by sections.
+        
         Args:
-            query(str): Takes in the topic for which the research papers are needed, format it such that the ar5iv api understands it
-            top_k(int): Number of top results to return (default is 5)
-
-        Returns:
-            - Title
-            - Authors
-            - Abstract
-            - Full text (section wise if available) COMPULSORY if available
+            query: Search query formatted as a natural sentence or specific paper/author 
+            name (e.g., "transformer architecture" or "Vaswani et al")
+            top_k: Number of top results to return.
+            
+            IMPORTANT - When to set top_k:
+            - top_k=1: ONLY if you have a specific arXiv ID or exact paper title
+              Example: query="2404.12345" or query="Attention is All You Need"
+            - top_k=3 (default): For topic-based searches (use this most of the time)
+              Example: query="transformer attention mechanisms"
+            - top_k>3: Rarely needed; avoid unless specifically requested by user
+            
+        Important: Only call this tool after confirming relevance via abstract from 
+        another search tool, as full-text retrieval is data-intensive.
         """
         return ar5iv_search(query, top_k)
     
-    @mcp.tool(name="Wikipedia search", enabled=True)
+    @mcp.tool(name="Wikipedia Search", enabled=True)
     def wikipedia_search(topic: str) -> str:
         """
-        This tool is used to acces the wikipedia search and Useful for retrieving general scientific concepts, background knowledge, and material property definitions.
-
+        Search Wikipedia for general knowledge and background information.
+        
+        Best for: Understanding scientific concepts, definitions, foundational 
+        material properties, and general context before diving into research papers.
+        
+        Returns: Summary text of the topic with relevant background information.
+        
         Args:
-            topic(str): This is the topic string, for which the wikipedia api will retrieve relavent results for.
-
-        Returns:
-            The summary strings of the topic that was given at the input
+            topic: The topic or concept to look up (e.g., "neural networks", 
+            "thermodynamics")
         """
         return _general_tools.wikipedia_tool.run(topic)

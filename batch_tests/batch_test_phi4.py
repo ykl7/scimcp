@@ -15,11 +15,13 @@ from smolagents.utils import AgentGenerationError
 from phoenix.otel import register
 from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 
-# Setup Phoenix with unique project name for Phi-4
+# Setup Phoenix instrumentation for tracking tokens, steps, and tool usage
 register(project_name="phi4-batch-testing")
 SmolagentsInstrumentor().instrument()
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+sys.path.insert(0, REPO_ROOT)
+
 from Tool_processing.Relevant_tools import get_relevant
 from Tools.Mat_Sci_tools import MaterialScienceToolRegistry
 
@@ -170,7 +172,7 @@ def run_batch_test_mascqa(questions, output_file='batch_test_phi4_results.json')
     
     server_params = StdioServerParameters(
         command="python",
-        args=["MCP/server.py"],
+        args=[os.path.join(REPO_ROOT, "MCP/server.py")],
         env={**os.environ}
     )
     
@@ -260,8 +262,8 @@ def main():
     
     args = parser.parse_args()
     
-    # Load questions
-    dataset_path = 'data/honeycomb_data/mascqa/mascqa-eval-with_answer.json'
+
+    dataset_path = os.path.join(REPO_ROOT, 'data/honeycomb_data/mascqa/mascqa-eval-with_answer.json')
     questions = load_mascqa_questions(dataset_path, num_questions=args.num, topic=args.topic, diverse=args.diverse)
     
     print(f"Loaded {len(questions)} questions")

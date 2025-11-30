@@ -210,7 +210,7 @@ def run_batch_test_mascqa(questions, output_file='batch_test_phi4_results.json')
                 all_toolnames
             )
             
-            status = "✓" if result['is_correct'] else "✗" if result['success'] else "ERROR"
+            status = "Correct- " if result['is_correct'] else "Wrong- " if result['success'] else "ERROR"
             duration = f"{result['duration']:.1f}s" if result['duration'] else "N/A"
             print(f"  {status} | {duration}")
             

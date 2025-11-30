@@ -44,10 +44,10 @@ class General_Tools:
             description="Search academic papers on arXiv."
         )
 
-    def google_scholar_search_tool(self, topic: str, num_results: int = 5) -> List[Dict[str, Any]]:
+    def google_scholar_search_tool(self, query: str, num_results: int = 5) -> List[Dict[str, Any]]:
         params = {
             "engine": "google_scholar",
-            "q": topic,
+            "q": query,
             "num": num_results,
             "api_key": os.environ["SERP_API_KEY"]
         }
@@ -56,7 +56,7 @@ class General_Tools:
         return self._extract_google_scholar_papers(response.json())
 
     def semantic_scholar_search_tool(self, query: str, result_limit: int = 5) -> List[Dict[str, Any]]:
-        query = self._sanitize_query(query)
+        # query = self._sanitize_query(query)
         fields = "title,abstract,citationCount,tldr,fieldsOfStudy,year,authors,isOpenAccess,openAccessPdf,url,venue"
         response = requests.get(
             "https://api.semanticscholar.org/graph/v1/paper/search",
@@ -122,7 +122,7 @@ def general_tools_manager(mcp):
     """Register all research-related tools"""
     
     @mcp.tool(name="Google Scholar Search", enabled=False)
-    def google_scholar_search(topic: str, num_results: int = 5) -> list[dict]:
+    def google_scholar_search(query: str, num_results: int = 5) -> list[dict]:
         """
         Search for academic papers using Google Scholar via SerpAPI.
         
@@ -132,14 +132,14 @@ def general_tools_manager(mcp):
         citation count, and links.
         
         Args:
-            topic: Search query (keywords, author names, or specific topics)
+            query: Search query (keywords, author names, or specific querys)
             num_results: Number of papers to return (default: 5)
             
         Note: This tool is disabled by default due to API costs.
         """
-        return _general_tools.google_scholar_search_tool(topic, num_results)
+        return _general_tools.google_scholar_search_tool(query, num_results)
 
-    @mcp.tool(name="Semantic Scholar Search", enabled=False)
+    @mcp.tool(name="Semantic Scholar Search", enabled=True)
     def semantic_scholar_search(query: str = "", result_limit: int = 5) -> list[dict]:
         """
         Search for research papers from Semantic Scholar API.
@@ -151,7 +151,7 @@ def general_tools_manager(mcp):
         year, venue, link, and PDF URL if open access.
         
         Args:
-            query: Search query (keywords, author names, or topics)
+            query: Search query (keywords, author names, or querys)
             result_limit: Maximum number of papers to return (default: 5)
             
         Note: This tool is disabled by default.
@@ -159,7 +159,7 @@ def general_tools_manager(mcp):
         return _general_tools.semantic_scholar_search_tool(query, result_limit)
 
     @mcp.tool(name="ArXiv Search", enabled=True)
-    def arxiv_search(topic: str) -> str:
+    def arxiv_search(query: str) -> str:
         """
         Search for research papers on arXiv.
         
@@ -170,10 +170,10 @@ def general_tools_manager(mcp):
         and links.
         
         Args:
-            topic: Search query formatted as a natural sentence or specific paper/author 
+            query: Search query formatted as a natural sentence or specific paper/author 
             name (e.g., "machine learning transformers" or "attention is all you need")
         """
-        return _general_tools.arxiv_tool.run(topic)
+        return _general_tools.arxiv_tool.run(query)
     
     @mcp.tool(name="Ar5iv Search", enabled=True)
     def ar5iv_search_tool(query: str, top_k: int = 3) -> list[dict]:
@@ -188,14 +188,21 @@ def general_tools_manager(mcp):
         full text organized by sections.
         
         Args:
-            query: Search query formatted as a natural sentence or specific paper/author 
-            name (e.g., "transformer architecture" or "Vaswani et al")
+            query: Search query formatted as a natural sentence, paper/author name, 
+            OR arXiv ID (e.g., "transformer architecture" or "Vaswani et al" or "2404.12345")
+            
+            CRITICAL - arXiv ID format:
+            - CORRECT: query="2308.01135" or query="2308.01135v4" (just the ID)
+            - WRONG: query="https://arxiv.org/abs/2308.01135" (NO URLs!)
+            - WRONG: query="https://arxiv.org/pdf/2308.01135" (NO URLs!)
+            - If you have a URL, extract only the numeric ID portion
+            
             top_k: Number of top results to return.
             
             IMPORTANT - When to set top_k:
             - top_k=1: ONLY if you have a specific arXiv ID or exact paper title
               Example: query="2404.12345" or query="Attention is All You Need"
-            - top_k=3 (default): For topic-based searches (use this most of the time)
+            - top_k=3 (default): For query-based searches (use this most of the time)
               Example: query="transformer attention mechanisms"
             - top_k>3: Rarely needed; avoid unless specifically requested by user
             
@@ -205,17 +212,17 @@ def general_tools_manager(mcp):
         return ar5iv_search(query, top_k)
     
     @mcp.tool(name="Wikipedia Search", enabled=True)
-    def wikipedia_search(topic: str) -> str:
+    def wikipedia_search(query: str) -> str:
         """
         Search Wikipedia for general knowledge and background information.
-        
+        Always give keywords. If it a short phrase, call the tool multiple times with keywords from the phrase.
         Best for: Understanding scientific concepts, definitions, foundational 
         material properties, and general context before diving into research papers.
         
-        Returns: Summary text of the topic with relevant background information.
+        Returns: Summary text of the query with relevant background information.
         
         Args:
-            topic: The topic or concept to look up (e.g., "neural networks", 
+            query: The query or concept to look up (e.g., "neural networks", 
             "thermodynamics")
         """
-        return _general_tools.wikipedia_tool.run(topic)
+        return _general_tools.wikipedia_tool.run(query)

@@ -3,14 +3,12 @@
 import os,sys,json
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from fastmcp import FastMCP
-from openai import AzureOpenAI
+from openai import OpenAI
 from Tools.Mat_Sci_tools import MaterialScienceToolRegistry
 
 
-client = AzureOpenAI(
-    api_key= os.getenv("AZURE_API_KEY"),
-    azure_endpoint= os.getenv("AZURE_ENDPOINT"),
-    api_version= "2025-01-01-preview"
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
 )
 
 system_prompt = """
@@ -40,19 +38,22 @@ Return a JSON object in the following format:
 def get_relevant(query, toolnames):
     try:
         response = client.chat.completions.create(
-            model = "gpt-4o" ,  #"gpt-4" "gpt-5-mini"
+            model = "gpt-5-mini" ,  #"gpt-4" "gpt-5-mini"
             messages=[
                 {"role":"system", "content": system_prompt},
                 {"role":"user", "content": f"toolnames: {toolnames}\nQuery: {query}"}
-            ],
-            temperature=0
+            ]
+            # temperature parameter removed - gpt-5-mini doesn't support temperature=0
         )
 
         content =  response.choices[0].message.content
         output = json.loads(content)
         return output["Twentyfive_relevant_tools"]
     except Exception as e:
-        return {"error": str(e)}
+        print(f"Warning: Tool filtering failed with error: {str(e)}")
+        print(f"Returning all tools as fallback.")
+    
+        return [name.split(':')[0].strip() if ':' in name else name.strip() for name in toolnames]
     
 
 # if __name__ =="__main__":

@@ -16,21 +16,31 @@ SmolagentsInstrumentor().instrument()
 
 
 custom_instructions = """
-IMPORTANT: When given a statement or claim about materials, technologies, or scientific facts:
-1. Do NOT just assume the statement is true and explain how to implement it.
-2. Instead, VERIFY the claim by:
-   - Searching for supporting or contradicting evidence in research papers
-   - Checking if the claim is theoretically sound based on material properties
-   - Identifying any limitations, caveats, or conditions under which it's true
-3. If you need a specific material property, always use the Material Project tools to look it up.
-4. Provide a critical analysis:
-   - Is the claim accurate? Partially accurate? Misleading?
-   - What evidence supports or contradicts it?
-   - Under what conditions is it valid?
-   - What are the practical implications?
-5. Refrain from looking for images as evidence; focus on textual and data-based verification.
-6. Always cite sources and research findings to back up your verification.
-7. ANSWER BEFORE EXCEEDING MAX STEPS.
+You are a materials science expert assistant.
+
+MANDATORY TOOL USAGE RULES:
+1. For material properties (band gap, density, crystal structure, etc.) → MUST use Materials Project tools
+2. For formulas, equations, or calculations → MUST search for verification using paper/Wikipedia tools  
+3. For scientific definitions or fundamental concepts → MUST use Wikipedia
+4. For claims requiring evidence or citations → MUST use Semantic Scholar, ArXiv, or Ar5iv tools
+5. For research findings or experimental data → MUST search literature for verification
+
+You MAY use your knowledge for:
+- Basic logical reasoning and deduction
+- Comparing and synthesizing information from tool results
+- Drawing conclusions from verified data
+
+When given a statement or claim:
+1. Do NOT assume it's true - VERIFY using tools
+2. Search for supporting or contradicting evidence in research papers
+3. Check material properties using Materials Project when relevant
+4. Identify limitations, caveats, or conditions for validity
+5. Provide critical analysis with evidence from tools
+
+IMPORTANT: 
+- Refrain from looking for images as evidence; focus on textual and data-based verification
+- Always cite sources and research findings from tool results
+- ANSWER BEFORE EXCEEDING MAX STEPS
 """
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -47,24 +57,20 @@ def main():
     toolnames = MaterialScienceToolRegistry.toolnames
     # relevant_tools = get_relevant(query = query, toolnames = toolnames)
 
-    # if 
-    model = AzureOpenAIServerModel(
-        model_id="gpt-5-mini",  #"gpt-4" "gpt-5-mini" "gpt-4o"
-        azure_endpoint=os.getenv("AZURE_ENDPOINT"),
-        api_key=os.getenv("AZURE_API_KEY"),
-        api_version="2024-12-01-preview" #"2025-01-01-preview" "2025-04-01-preview" "2024-12-01-preview"
-    )
 
-        # model = OpenAIServerModel(
-        # model_id="gpt-4o",
-        # api_base="https://api.openai.com/v1",
-        # api_key=os.environ["OPENAI_API_KEY"],
-        # )
-
-
-    # model = HfApiModel(
-    #     model_id="Qwen/Qwen2.5-Coder-32B-Instruct"
+    # Model 1: Azure GPT-5-mini
+    # model = AzureOpenAIServerModel(
+    #     model_id="gpt-5-mini",
+    #     azure_endpoint=os.getenv("AZURE_ENDPOINT"),
+    #     api_key=os.getenv("AZURE_API_KEY"),
+    #     api_version="2025-04-01-preview"
     # )
+
+    # Model 2: OpenAI GPT-5-mini
+    model = OpenAIServerModel(
+        model_id="gpt-5-mini",
+        api_key = os.getenv("OPENAI_API_KEY"))
+
     
     server_params = StdioServerParameters(
         command="python",
@@ -79,35 +85,38 @@ def main():
         relevant_tools = get_relevant(query=query, toolnames=all_toolnames)
         filtered_tools = [t for t in all_tools if t.name in relevant_tools]
         
+        print(f"\n🔧 Filtered to {len(filtered_tools)} relevant tools: {[t.name for t in filtered_tools]}\n")
 
-        # agent = CodeAgent(
-        #     tools=tool_collection.tools, 
-        #     model=model,
-        #     # additional_authorized_imports=['json'],
-        #     use_structured_outputs_internally= False,
-        #     # code_block_tags="python",
-        #     executor_type= "local"
-        # )
-        # prompt_templates = smolagents.PromptTemplates(
-        #     system_prompt="You must not answer the question directly. Always call a tool. If no tool is appropriate, say you cannot help."
-        # )
-        agent = ToolCallingAgent(
+        # ========================================
+        # CodeAgent: Best for structured data tools
+        # ========================================
+        agent = CodeAgent(
             tools=filtered_tools,
-            model= model,
-            # step_callbacks= step_callbacks,
-            # instructions = custom_instructions,
-            max_steps=20,
+            model=model,
+            additional_authorized_imports=['json', 're', 'math'],
+            # instructions=custom_instructions,
             planning_interval=2,
-            # verbosity_level= LogLevel.DEBUG,
-            # prompt_templates= prompt_templates,
+            use_structured_outputs_internally=False,
+            max_steps=15,
         )
+        
+        # ========================================
+        # ToolCallingAgent: Use only if tools return simple text
+        # ========================================
+        # agent = ToolCallingAgent(
+        #     tools=filtered_tools,
+        #     model=model,
+        #     max_steps=20,
+        #     planning_interval=2,
+        #     # instructions=custom_instructions,  # Too complex for weaker models
+        # )
         # print("Registered tools:", list(agent.tools.keys()))
         # result = agent.run(query)
         result = None
         for attempt in range(3):
             try:
-                result = agent.run(f"{query}\n\nIMPORTANT: Each question is provided multiple choices, based on the question, reason and choose the correct answer from the choices. This is MANDATORY.") #IMPORTANT: In your final answer, clearly state whether the initial claim is True or False based on your analysis. This is MANDATORY.
-                break  #IMPORTANT: The final answer needs to be a simple one word answer to what the question is asking. This is MANDATORY.
+                result = agent.run(f"{query}\n\n IMPORTANT: In your final answer, clearly state whether the initial claim is True or False based on your analysis. This is MANDATORY.") #IMPORTANT: In your final answer, clearly state whether the initial claim is True or False based on your analysis. This is MANDATORY.
+                break  #IMPORTANT: Each question is provided multiple choices, based on the question, reason and choose the correct answer from the choices. This is MANDATORY.
             except AgentGenerationError as e:
                 print(f"[Attempt {attempt+1}] AgentGenerationError: {str(e)}")
             except BadRequestError as e:

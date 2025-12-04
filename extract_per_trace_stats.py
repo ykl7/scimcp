@@ -4,10 +4,10 @@ Extract per-trace (per-question) statistics from Phoenix telemetry database
 Each trace corresponds to one question in batch testing
 
 Usage:
-    python extract_per_trace_stats.py --project phi4-batch-final
-    python extract_per_trace_stats.py --project phi4mini_inst-batch-test -o phi4mini_traces.json
-    python extract_per_trace_stats.py --db ~/.phoenix/phoenix.db --project phi4-batch-final
-    python extract_per_trace_stats.py --list-projects
+    python extract_phoenix_stats.py --project phi4-batch-final
+    python extract_phoenix_stats.py --project phi4mini_inst-batch-test -o phi4mini_traces.json
+    python extract_phoenix_stats.py --db ~/.phoenix/phoenix.db --project phi4-batch-final
+    python extract_phoenix_stats.py --list-projects
 """
 
 import sqlite3
@@ -30,12 +30,13 @@ def extract_per_trace_stats(db_path, project_name, output_file=None):
     print(f"Database: {db_path}")
     print(f"Project:  {project_name}")
     
-    # Get all traces for this project
+    # Get all traces for this project (join with projects table)
     cursor.execute("""
-        SELECT rowid, trace_id, start_time, end_time
-        FROM traces 
-        WHERE project_name = ?
-        ORDER BY start_time
+        SELECT t.id, t.trace_id, t.start_time, t.end_time
+        FROM traces t
+        JOIN projects p ON t.project_rowid = p.id
+        WHERE p.name = ?
+        ORDER BY t.start_time
     """, (project_name,))
     
     traces = cursor.fetchall()
@@ -43,10 +44,10 @@ def extract_per_trace_stats(db_path, project_name, output_file=None):
     if not traces:
         print(f"\nNo traces found for project '{project_name}'")
         cursor.execute("""
-            SELECT project_name, COUNT(*) as cnt 
-            FROM traces 
-            WHERE project_name IS NOT NULL
-            GROUP BY project_name
+            SELECT p.name, COUNT(*) as cnt 
+            FROM traces t
+            JOIN projects p ON t.project_rowid = p.id
+            GROUP BY p.name
         """)
         print("\nAvailable projects:")
         for row in cursor.fetchall():
@@ -242,10 +243,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python extract_per_trace_stats.py --list-projects
-  python extract_per_trace_stats.py --project phi4-batch-final
-  python extract_per_trace_stats.py --project phi4-batch-final -o phi4_traces.json
-  python extract_per_trace_stats.py --project phi4mini_inst-batch-test -o phi4mini_traces.json
+  python extract_phoenix_stats.py --list-projects
+  python extract_phoenix_stats.py --project phi4-batch-final
+  python extract_phoenix_stats.py --project phi4-batch-final -o phi4_traces.json
+  python extract_phoenix_stats.py --project phi4mini_inst-batch-test -o phi4mini_traces.json
         """
     )
     parser.add_argument(
@@ -298,10 +299,10 @@ Examples:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT project_name, COUNT(*) as trace_count 
-            FROM traces 
-            WHERE project_name IS NOT NULL
-            GROUP BY project_name
+            SELECT p.name, COUNT(*) as trace_count 
+            FROM traces t
+            JOIN projects p ON t.project_rowid = p.id
+            GROUP BY p.name
             ORDER BY trace_count DESC
         """)
         print(f"\nProjects in {db_path}:")

@@ -81,22 +81,37 @@ def extract_per_trace_stats(db_path, project_name, output_file=None):
         
         # Count tool calls and get tool names
         cursor.execute("""
-            SELECT attributes FROM spans
-            WHERE trace_rowid = ? 
-            AND (span_kind = 'TOOL' OR name LIKE '%Tool%')
+            SELECT name, attributes FROM spans
+            WHERE trace_rowid = ? AND span_kind = 'TOOL'
         """, (trace_rowid,))
         
         tools_used = []
         tool_call_count = 0
         for row in cursor.fetchall():
+            span_name = row[0]
+            # Skip FinalAnswerTool - it's just the answer wrapper
+            if 'FinalAnswer' in span_name:
+                continue
+            tool_call_count += 1
+            # Try to get specific tool name from attributes
             try:
-                attrs = json.loads(row[0])
-                tool_name = attrs.get('tool.name') or attrs.get('name')
-                if tool_name and tool_name != 'final_answer':
-                    tools_used.append(tool_name)
-                    tool_call_count += 1
+                attrs = json.loads(row[1])
+                # Check tool description for hints about which tool
+                tool_desc = attrs.get('tool', {}).get('description', '')
+                if 'Wikipedia' in tool_desc:
+                    tools_used.append('wikipedia_search')
+                elif 'arXiv' in tool_desc or 'arxiv' in tool_desc:
+                    tools_used.append('arxiv_search')
+                elif 'Material' in tool_desc or 'mp_' in tool_desc:
+                    tools_used.append('materials_project')
+                elif 'PubChem' in tool_desc:
+                    tools_used.append('pubchem')
+                elif 'web' in tool_desc.lower() or 'search' in tool_desc.lower():
+                    tools_used.append('web_search')
+                else:
+                    tools_used.append(span_name)  # fallback to MCPAdaptTool
             except:
-                pass
+                tools_used.append(span_name)
         
         # Count total spans (approximates steps)
         cursor.execute("""

@@ -10,6 +10,8 @@ from openinference.instrumentation.smolagents import SmolagentsInstrumentor
 from smolagents import ToolCallingAgent, ActionStep, PlanningStep, FinalAnswerStep
 from smolagents.agents import LogLevel
 from openai import BadRequestError
+import anthropic
+import argparse
 # Setup Phoenix
 register()
 SmolagentsInstrumentor().instrument()
@@ -19,11 +21,11 @@ custom_instructions = """
 You are a materials science expert assistant.
 
 MANDATORY TOOL USAGE RULES:
-1. For material properties (band gap, density, crystal structure, etc.) → MUST use Materials Project tools
-2. For formulas, equations, or calculations → MUST search for verification using paper/Wikipedia tools  
-3. For scientific definitions or fundamental concepts → MUST use Wikipedia
-4. For claims requiring evidence or citations → MUST use Semantic Scholar, ArXiv, or Ar5iv tools
-5. For research findings or experimental data → MUST search literature for verification
+1. For material properties (band gap, density, crystal structure, etc.) -> MUST use Materials Project tools
+2. For formulas, equations, or calculations -> MUST search for verification using paper/Wikipedia tools  
+3. For scientific definitions or fundamental concepts -> MUST use Wikipedia
+4. For claims requiring evidence or citations -> MUST use Semantic Scholar, ArXiv, or Ar5iv tools
+5. For research findings or experimental data -> MUST search literature for verification
 
 You MAY use your knowledge for:
 - Basic logical reasoning and deduction
@@ -50,28 +52,36 @@ from Tools.Mat_Sci_tools import MaterialScienceToolRegistry
 def main():
     parser = argparse.ArgumentParser(description="Run an AI agent query using smolagents.")
     parser.add_argument("query", help="The prompt/query to run", nargs="+")
+    parser.add_argument("--prov", choices=["azure", "openai", "anthropic"], default="openai", help="Which prov to use for the agent.")
+    parser.add_argument("--model", help = "Name of the model from the provider, e.g. gpt-5-mini for Azure or OpenAI, claude-2 for Anthropic")
+    
     args = parser.parse_args()
 
     query = " ".join(args.query)
-
+    model_name = args.model if args.model else "gpt-5-mini"  # Default to gpt-5-mini if not specified
     toolnames = MaterialScienceToolRegistry.toolnames
     # relevant_tools = get_relevant(query = query, toolnames = toolnames)
 
+    if args.prov == "azure":
+        # Model 1: Azure GPT-5-mini
+        model = AzureOpenAIServerModel(
+            model_id=model_name,
+            azure_endpoint=os.getenv("AZURE_ENDPOINT"),
+            api_key=os.getenv("AZURE_API_KEY"),
+            api_version=os.getenv("AZURE_API_VERSION", "2024-06-01")
+        )
+    elif args.prov == "openai":
+        # Model 2: OpenAI GPT-5-mini
+        model = OpenAIServerModel(
+            model_id=model_name,
+            api_key = os.getenv("OPENAI_API_KEY"))
+    elif args.prov == "anthropic":
+        # Model 3: Anthropic Claude-2
+        model = anthropic.Anthropic(
+            model_id=model_name,
+            api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-    # Model 1: Azure GPT-5-mini
-    # model = AzureOpenAIServerModel(
-    #     model_id="gpt-5-mini",
-    #     azure_endpoint=os.getenv("AZURE_ENDPOINT"),
-    #     api_key=os.getenv("AZURE_API_KEY"),
-    #     api_version="2025-04-01-preview"
-    # )
-
-    # Model 2: OpenAI GPT-5-mini
-    model = OpenAIServerModel(
-        model_id="gpt-5-mini",
-        api_key = os.getenv("OPENAI_API_KEY"))
-
-    
+        
     server_params = StdioServerParameters(
         command="python",
         args=["MCP/server.py"],
@@ -85,7 +95,7 @@ def main():
         relevant_tools = get_relevant(query=query, toolnames=all_toolnames)
         filtered_tools = [t for t in all_tools if t.name in relevant_tools]
         
-        print(f"\n🔧 Filtered to {len(filtered_tools)} relevant tools: {[t.name for t in filtered_tools]}\n")
+        print(f"\n Filtered to {len(filtered_tools)} relevant tools: {[t.name for t in filtered_tools]}\n")
 
         # ========================================
         # CodeAgent: Best for structured data tools
@@ -137,5 +147,6 @@ def main():
         #     print("Agent failed after 3 attempts.")
 
 if __name__ == "__main__":
+    # parser = argparse.ArgumentParser(description="Run an AI agent query using smolagents.")
     main()
     
